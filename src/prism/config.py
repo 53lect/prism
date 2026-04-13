@@ -12,6 +12,6 @@ MIN_PROFIT_FEE_MULTIPLIER = float(os.getenv("MIN_PROFIT_FEE_MULTIPLIER", "2.0"))
 
 # Pares de trading configurados
 STABLE_PAIRS = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
-VOLATILE_PAIRS: list[str] = []  # se completan tras el Research Agent
+VOLATILE_PAIRS: list[str] = ["LINKUSDT", "DOGEUSDT", "AVAXUSDT"]  # seleccionados por Research Agent 2026-04-12
 
 ALL_PAIRS = STABLE_PAIRS + VOLATILE_PAIRS
