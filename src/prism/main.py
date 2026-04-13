@@ -91,6 +91,11 @@ def format_signal(result: dict) -> str:
 
     signal = syn.get("signal", "NEUTRAL")
     confidence = syn.get("confidence", 0)
+    ts = syn.get("trade_suggestion", {})
+    advisable = ts.get("advisable", False)
+    trade_line = f"  {'SI' if advisable else 'NO aconsejable'} — {ts.get('direction', '')} | {ts.get('entry_note', '')}"
+    trade_reason = f"  {ts.get('reason', '')}"
+
     lines = [
         f"\n{'='*55}",
         f"  {result['symbol']} | {signal} {confidence}%{cached}",
@@ -104,18 +109,58 @@ def format_signal(result: dict) -> str:
         f"",
         f"  {syn.get('reasoning', '')}",
         f"  RIESGO: {syn.get('key_risk', '')}",
+        f"",
+        f"  TRADE SUGERIDO:",
+        trade_line,
+        trade_reason,
         f"{'='*55}",
     ]
     return "\n".join(lines)
 
 
 async def run_all(capital: float = 500.0, leverage: float = 3.0) -> list[dict]:
-    """Analiza todos los pares configurados."""
+    """Analiza todos los pares en paralelo (capas 1-5) y síntesis en batch (1 sola llamada a Claude)."""
     init_db()
+
+    # Capas 1-5 en paralelo para todos los pares
+    async def fetch_layers(symbol: str) -> dict:
+        currency = symbol.replace("USDT", "")
+        market_result, sentiment_result, news_result, macro_result = await asyncio.gather(
+            market_data.analyze(symbol),
+            sentiment.analyze(),
+            news.analyze(currency),
+            macro.analyze(),
+        )
+        risk_result = risk.analyze(market_result, capital=capital, leverage=leverage)
+        return {
+            "symbol": symbol,
+            "market": market_result,
+            "sentiment": sentiment_result,
+            "news": news_result,
+            "macro": macro_result,
+            "risk": risk_result,
+        }
+
+    print(f"  Recolectando datos de {len(ALL_PAIRS)} pares...")
+    pairs_data = await asyncio.gather(*[fetch_layers(symbol) for symbol in ALL_PAIRS])
+
+    # Capa 6: síntesis en batch — una sola llamada a Claude
+    print("  Ejecutando síntesis batch (1 llamada a Claude)...")
+    synthesis_results = await synthesis.analyze_batch(list(pairs_data))
+
     results = []
-    for symbol in ALL_PAIRS:
-        print(f"  Analizando {symbol}...")
-        result = await analyze_pair(symbol, capital, leverage)
+    for p in pairs_data:
+        symbol = p["symbol"]
+        result = {
+            "symbol": symbol,
+            "market": p["market"],
+            "sentiment": p["sentiment"],
+            "news": p["news"],
+            "macro": p["macro"],
+            "risk": p["risk"],
+            "synthesis": synthesis_results[symbol],
+        }
         save_analysis(result)
         results.append(result)
+
     return results
