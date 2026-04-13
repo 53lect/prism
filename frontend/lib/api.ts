@@ -40,7 +40,30 @@ export interface AnalysisResult {
     reasoning: string;
     key_risk: string;
     from_cache: boolean;
+    trade_suggestion?: {
+      direction: "LONG" | "SHORT" | "NEUTRAL";
+      entry_note: string;
+      advisable: boolean;
+      reason: string;
+    };
   };
+}
+
+export interface Kline {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+export type Interval = "15m" | "1h" | "4h" | "1d";
+
+export async function fetchKlines(symbol: string, interval: Interval = "1h", limit = 100): Promise<Kline[]> {
+  const params = new URLSearchParams({ interval, limit: String(limit) });
+  const res = await fetch(`${BASE}/klines/${symbol}?${params}`, { cache: "no-store" });
+  return res.json();
 }
 
 export async function fetchPairs(): Promise<PairSummary[]> {
